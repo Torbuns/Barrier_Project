@@ -1,9 +1,12 @@
 import cv2
 import torch
-from mss import mss
 import pandas as pd
+from mss import mss
+import easyocr
 
-model = torch.hub.load("ultralytics/yolov5", 'custom', path="../resource/5n6_mentor.pt")
+reader = easyocr.Reader(['en'])
+model = torch.hub.load("ultralytics/yolov5", 'custom', path="/Users/admin/Desktop/tesseract/venv/lib/5n6_mentor.pt",
+                       trust_repo=True)
 sct = mss()
 vid = cv2.VideoCapture(0)
 
@@ -31,9 +34,16 @@ def is_license_plate_on_car(result_data):
             xmax_license = licenses["xmax"][j]
             ymax_license = licenses["ymax"][j]
             if xmin_car < xmin_license and ymin_car < ymin_license and xmax_car > xmax_license and ymax_car > ymax_license:
-                print("*************************************************************Shazam open up*******************************************************")
+                screenshot = frame[int(ymin_license):int(ymax_license), int(xmin_license):int(xmax_license)]
+                cv2.imwrite('screenshot.jpg', screenshot)
+                text = reader.readtext(screenshot)
+                # print("Detected text on the license plate: ", text)
+                if text:
+                    textR = text[0][1]
+                    print(textR)
+                else:
+                    print('')
                 break
-
 
 while True:
     ret, frame = vid.read()
