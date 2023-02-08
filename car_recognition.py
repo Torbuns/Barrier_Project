@@ -3,9 +3,13 @@ import os
 import sys
 from pathlib import Path
 
+import cv2
+import easyocr
+
 import pandas as pd
 import torch
 
+reader = easyocr.Reader(['en'])
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -51,6 +55,7 @@ def run(
     # Run inference
     model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
+
     for path, im, im0s, vid_cap, s in dataset:
         with dt[0]:
             im = torch.from_numpy(im).to(model.device)
@@ -74,19 +79,19 @@ def run(
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
-
                 data = []
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
+
                     data.append([int(xyxy[0].item()), int(xyxy[1].item()), int(xyxy[2].item()), int(xyxy[3].item()), int(cls.item())])
-                check_dataframe(create_dataframe(data))
+                check_dataframe(create_dataframe(data), im0)
 
 
 def create_dataframe(data):
     dataframe = pd.DataFrame(data, columns=['xmin', 'ymin', 'xmax', 'ymax', 'class'])
     return dataframe
 
-def check_dataframe(result_data):
+def check_dataframe(result_data, image):
     cars = result_data[result_data["class"] == 0]
     licenses = result_data[result_data["class"] == 1]
     if cars.size > 0 and licenses.size > 0:
@@ -101,7 +106,16 @@ def check_dataframe(result_data):
                 xmax_license = licenses["xmax"][j]
                 ymax_license = licenses["ymax"][j]
                 if xmin_car < xmin_license and ymin_car < ymin_license and xmax_car > xmax_license and ymax_car > ymax_license:
-                    print("*************************************************************Shazam open up*******************************************************")
+                    # Take screenshot
+                    car_plate_number = image[int(ymin_license):int(ymax_license), int(xmin_license):int(xmax_license)]
+                    cv2.imwrite("car_plate_number.jpg", car_plate_number)
+                    text = reader.readtext(car_plate_number)
+                    # print("Detected text on the license plate: ", text)
+                    if text:
+                        textR = text[0][1]
+                        print(textR)
+                    else:
+                        print('')
                     break
 
 
